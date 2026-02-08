@@ -27,7 +27,9 @@ Mininet is used to create the SDN data plane. A tree topology is chosen to emula
 
 
 **Command:**
+```bash
 sudo mn --controller=remote --topo=tree,depth=2,fanout=3 --switch=ovs
+```
 
 **This command:**
 * Creates multiple Open vSwitch instances
@@ -42,7 +44,9 @@ sudo mn --controller=remote --topo=tree,depth=2,fanout=3 --switch=ovs
 Before generating traffic, connectivity between all hosts is verified.
 
 **Command:**
+```bash
 mininet> pingall
+```
 
 **Expected output:**
 0% packet loss (Confirms that the SDN topology is correctly configured and stable).
@@ -54,14 +58,20 @@ mininet> pingall
 To emulate eMBB (Enhanced Mobile Broadband) traffic, TCP-based high-throughput traffic is generated.
 
 1. Start an iperf3 server on host h1:
+   ```bash
    mininet> h1 iperf3 -s &
+   ```
 
 2. Generate TCP traffic from host h2 to host h1:
+   ```bash
    mininet> h2 iperf3 -c h1 -t 20
+   ```
 
 3. Save and view the output for analysis:
+   ```bash
    mininet> h2 iperf3 -c h1 -t 20 > embb.txt
    mininet> h2 cat embb.txt
+   ```
 
 *This traffic represents 5G eMBB, characterized by sustained high bandwidth usage.*
 
@@ -72,7 +82,9 @@ To emulate eMBB (Enhanced Mobile Broadband) traffic, TCP-based high-throughput t
 To emulate URLLC (Ultra-Reliable Low-Latency Communication), UDP traffic with controlled bandwidth is generated.
 
 **Command:**
+```bash
 mininet> h3 iperf3 -u -b 1M -c h1 -t 20
+```
 
 **This traffic characteristics:**
 * Uses UDP instead of TCP
@@ -87,7 +99,9 @@ mininet> h3 iperf3 -u -b 1M -c h1 -t 20
 To emulate mMTC (Massive Machine-Type Communication), frequent small packets are generated using ICMP.
 
 **Command:**
+```bash
 mininet> h4 ping h1 -i 0.2 -c 50
+```
 
 **Observed behavior:**
 * RTT ≈ 0.05–0.07 ms
