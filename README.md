@@ -322,3 +322,386 @@ cp flow_stats.csv flow_stats_raw_536k.csv
 * ✔ Large-scale dataset generated
 * ✔ Concurrent 5G-like traffic emulated
 * ✔ Ready for ML classification
+
+# SDN Traffic Classification using LightGBM
+
+This project performs **traffic classification in an SDN network** using **machine learning**. Flow statistics are collected from an SDN environment built with **Mininet and the RYU controller**, and a **LightGBM model** is trained to classify traffic into:
+
+```
+eMBB
+URLLC
+mMTC
+```
+
+---
+
+# 1. Load the Raw Flow Statistics Dataset
+
+The raw dataset collected from the SDN controller is stored as:
+
+```
+flow_stats_raw_536k.csv
+```
+
+## Command
+
+```python
+import pandas as pd
+
+df = pd.read_csv("flow_stats_raw_536k.csv")
+```
+
+## Why
+
+This dataset contains **OpenFlow flow statistics** collected during traffic generation experiments.
+
+Example raw features:
+
+```
+dpid
+src_ip
+dst_ip
+packet_count
+byte_count
+duration_sec
+```
+
+These metrics describe **basic network flow behaviour**.
+
+---
+
+# 2. Remove Non-Behavioral Features
+
+Certain columns are removed before training.
+
+## Command
+
+```python
+df = df.drop(columns=["src_ip","dst_ip"])
+```
+
+## Why
+
+IP addresses represent **flow identity**, not **traffic behaviour**.
+
+Keeping them can cause the model to **memorize flows instead of learning patterns**.
+
+---
+
+# 3. Feature Engineering
+
+To improve classification performance, several traffic behaviour features are derived.
+
+---
+
+## Packet Rate
+
+### Command
+
+```python
+df["packet_rate"] = df["packet_count"] / df["duration_sec"]
+```
+
+### Why
+
+Packet rate indicates **how frequently packets are transmitted**.
+
+Typical behaviour:
+
+```
+mMTC → low packet rate
+URLLC → moderate packet rate
+eMBB → high packet rate
+```
+
+---
+
+## Byte Rate
+
+### Command
+
+```python
+df["byte_rate"] = df["byte_count"] / df["duration_sec"]
+```
+
+### Why
+
+Byte rate represents **data transfer speed**.
+
+---
+
+## Throughput
+
+### Command
+
+```python
+df["throughput"] = df["byte_rate"] * 8
+```
+
+### Why
+
+Throughput measures **bits per second (bps)** and helps identify high-bandwidth flows.
+
+---
+
+## Average Packet Size
+
+### Command
+
+```python
+df["avg_packet_size"] = df["byte_count"] / df["packet_count"]
+```
+
+### Why
+
+Different traffic types use different packet sizes:
+
+```
+eMBB → large packets
+URLLC → medium packets
+mMTC → small packets
+```
+
+---
+
+## Flow Intensity
+
+### Command
+
+```python
+df["flow_intensity"] = df["packet_rate"] * df["avg_packet_size"]
+```
+
+### Why
+
+Captures **traffic burst behaviour**.
+
+---
+
+## Log Transformations
+
+### Command
+
+```python
+import numpy as np
+
+df["log_byte_count"] = np.log1p(df["byte_count"])
+df["log_throughput"] = np.log1p(df["throughput"])
+```
+
+### Why
+
+Log transformations help:
+
+```
+reduce skewed distributions
+improve model stability
+```
+
+---
+
+# 4. Save the Engineered Dataset
+
+## Command
+
+```python
+df.to_csv("traffic_dataset_features_final.csv", index=False)
+```
+
+## Why
+
+This separates the **raw dataset** from the **machine learning dataset** and improves reproducibility.
+
+Final dataset size:
+
+```
+536,760 flow records
+```
+
+---
+
+# 5. Prepare Data for Machine Learning
+
+## Command
+
+```python
+df = pd.read_csv("traffic_dataset_features_final.csv")
+
+X = df.drop(columns=["label"])
+y = df["label"]
+```
+
+## Why
+
+Machine learning models require:
+
+```
+X → input features
+y → target labels
+```
+
+Labels represent traffic types:
+
+```
+eMBB
+URLLC
+mMTC
+```
+
+---
+
+# 6. Train-Test Split
+
+## Command
+
+```python
+from sklearn.model_selection import train_test_split
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y,
+    test_size=0.2,
+    random_state=42
+)
+```
+
+## Why
+
+Splitting the dataset ensures the model is evaluated on **unseen data**, preventing overfitting.
+
+Dataset split:
+
+```
+80% training
+20% testing
+```
+
+---
+
+# 7. Train the LightGBM Model
+
+## Command
+
+```python
+import lightgbm as lgb
+
+model = lgb.LGBMClassifier(
+    n_estimators=200,
+    learning_rate=0.05,
+    max_depth=8
+)
+
+model.fit(X_train, y_train)
+```
+
+## Why LightGBM
+
+LightGBM performs well on:
+
+```
+large tabular datasets
+correlated features
+high-dimensional network data
+```
+
+---
+
+# 8. Predict Traffic Classes
+
+## Command
+
+```python
+y_pred = model.predict(X_test)
+```
+
+## Why
+
+The trained model predicts whether each network flow belongs to:
+
+```
+eMBB
+URLLC
+mMTC
+```
+
+---
+
+# 9. Evaluate Model Accuracy
+
+## Command
+
+```python
+from sklearn.metrics import accuracy_score
+
+accuracy = accuracy_score(y_test, y_pred)
+
+print("Accuracy:", accuracy)
+```
+
+---
+
+# Model Performance
+
+| Metric    | Score   |
+|-----------|----------|
+| Accuracy  | 99.93%  |
+| Precision | 99.93%  |
+| Recall    | 99.93%  |
+| F1 Score  | 99.93%  |
+
+The LightGBM model achieves very high classification performance, demonstrating that flow-level statistical features can effectively distinguish between **eMBB**, **URLLC**, and **mMTC** traffic types.
+
+---
+
+# 10. Visualization and Analysis
+
+Several visualizations were created to understand dataset behaviour and model performance.
+
+---
+
+## Traffic Type Distribution
+
+<p align="center">
+<img src="images/traffic_distribution.png" width="500">
+</p>
+
+This plot shows the number of flows for each traffic category.
+
+---
+
+## Traffic Behaviour (Packet Rate vs Throughput)
+
+<p align="center">
+<img src="images/scatter_plot.png" width="600">
+</p>
+
+The scatter plot demonstrates how traffic types exhibit different statistical patterns.
+
+---
+
+## Feature Correlation Heatmap
+
+<p align="center">
+<img src="images/correlation_heatmap.png" width="600">
+</p>
+
+The heatmap shows relationships between engineered traffic features.
+
+---
+
+## Feature Importance
+
+<p align="center">
+<img src="images/feature_importance.png" width="500">
+</p>
+
+This visualization highlights the features most influential for classification.
+
+---
+
+## Confusion Matrix
+
+<p align="center">
+<img src="images/confusion_matrix.png" width="450">
+</p>
+
+The confusion matrix shows how accurately the model distinguishes between traffic types.
